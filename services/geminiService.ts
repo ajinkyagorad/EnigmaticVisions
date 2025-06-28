@@ -11,16 +11,25 @@ declare global {
 let ai: GoogleGenAI | null = null;
 
 try {
-  if (!import.meta.env.VITE_GEMINI_API_KEY) {
-    throw new Error("API_KEY environment variable is not set. Please configure it in your deployment service (e.g., Netlify).");
+  // Check for API key in environment variables
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error(
+      "API key not found. Please ensure you have set either VITE_GEMINI_API_KEY or GEMINI_API_KEY " +
+      "in your Netlify environment variables."
+    );
   }
-  ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+  
+  // Initialize the Gemini client
+  ai = new GoogleGenAI({ apiKey });
+  console.log("Gemini API client initialized successfully");
 } catch (error) {
   const errorMessage = error instanceof Error ? error.message : "Failed to initialize Gemini AI.";
   if (typeof window !== 'undefined') {
     window.geminiInitializationError = errorMessage;
   }
-  console.error(errorMessage);
+  console.error("Gemini initialization error:", errorMessage);
 }
 
 // Helper function to handle API errors
@@ -45,7 +54,7 @@ export const generateMysticPhrase = async (seedNumber: number): Promise<string> 
       contents: [{ parts: [{ text: prompt }] }],
       config: { temperature: 1, topP: 0.95 }
     });
-    return response.text.trim();
+    return response.text?.trim() || "A cosmic whisper echoes through the void, unheard but felt.";
   } catch (error) {
     throw getConfigurationError(error);
   }
@@ -64,7 +73,7 @@ export const generateEnigmaticImage = async (phrase: string): Promise<string> =>
       prompt: fullPrompt,
       config: { numberOfImages: 1, outputMimeType: 'image/jpeg' },
     });
-    if (response.generatedImages && response.generatedImages.length > 0) {
+    if (response.generatedImages && response.generatedImages.length > 0 && response.generatedImages[0].image?.imageBytes) {
       const base64ImageBytes = response.generatedImages[0].image.imageBytes;
       return `data:image/jpeg;base64,${base64ImageBytes}`;
     }
