@@ -139,7 +139,7 @@ const App: React.FC = () => {
             </div>
             
             <div className="mb-8">
-              <p className="text-slate-500 mb-4 font-light">Choose a visualization style:</p>
+              <p className="text-slate-500 mb-4 font-light">Choose a form of the vision:</p>
               <div className="flex justify-center gap-4">
                 <button 
                   onClick={() => setSelectedStyle(ImageStyle.HUMAN_FORM)}
