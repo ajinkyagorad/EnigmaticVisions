@@ -60,13 +60,32 @@ export const generateMysticPhrase = async (seedNumber: number): Promise<string> 
   }
 };
 
+export enum ImageStyle {
+  HUMAN_FORM = 'human_form',
+  COSMIC_ENTITY = 'cosmic_entity'
+}
+
 /**
- * Generates an enigmatic image based on a phrase
+ * Get artistic flavor text based on the selected style
  */
-export const generateEnigmaticImage = async (phrase: string): Promise<string> => {
+const getArtisticFlavor = (style: ImageStyle): string => {
+  switch (style) {
+    case ImageStyle.HUMAN_FORM:
+      return "ethereal human form with artsy morphing styles merging between objects, dreamlike quality, soft focus, surreal anatomical features, flowing forms, high resolution, atmospheric lighting, digital painting style";
+    case ImageStyle.COSMIC_ENTITY:
+      return "materialistic observation from another universe, alien geometry, impossible physics, cosmic entity, non-euclidean shapes, otherworldly textures, surreal concept-warping, morphing forms between states of matter, ethereal, mystical, dreamlike, enigmatic, high resolution, atmospheric lighting";
+    default:
+      return "ethereal, mystical, surreal, concept-warping, morphing forms, soft focus, dreamlike, enigmatic. A digital painting with the meta feeling of an Enigma (musical project) video cover art. High resolution, atmospheric lighting.";
+  }
+};
+
+/**
+ * Generates an enigmatic image based on a phrase and style
+ */
+export const generateEnigmaticImage = async (phrase: string, style: ImageStyle = ImageStyle.HUMAN_FORM): Promise<string> => {
   if (!ai) throw new Error(window.geminiInitializationError || "Gemini AI not initialized.");
   try {
-    const artisticFlavor = "ethereal, mystical, surreal, concept-warping, morphing forms, soft focus, dreamlike, enigmatic. A digital painting with the meta feeling of an Enigma (musical project) video cover art. High resolution, atmospheric lighting.";
+    const artisticFlavor = getArtisticFlavor(style);
     const fullPrompt = `${phrase}. In the style of: ${artisticFlavor}`;
     const response = await ai.models.generateImages({
       model: 'imagen-3.0-generate-002',

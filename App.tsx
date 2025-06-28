@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { generateMysticPhrase, generateEnigmaticImage } from './services/geminiService';
+import { generateMysticPhrase, generateEnigmaticImage, ImageStyle } from './services/geminiService';
 import ActionButton from './components/ActionButton';
 import Spinner from './components/Spinner';
+import MediaControls from './components/MediaControls';
 
 export enum AppStep {
   Initial = 0,
@@ -19,6 +20,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [hostname, setHostname] = useState<string>('');
+  const [selectedStyle, setSelectedStyle] = useState<ImageStyle>(ImageStyle.HUMAN_FORM);
 
   useEffect(() => {
     setHostname(window.location.hostname);
@@ -69,7 +71,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError('');
     try {
-      const url = await generateEnigmaticImage(mysticPhrase);
+      const url = await generateEnigmaticImage(mysticPhrase, selectedStyle);
       setImageUrl(url);
       setStep(AppStep.ImageGenerated);
     } catch (e) {
@@ -78,7 +80,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [mysticPhrase]);
+  }, [mysticPhrase, selectedStyle]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -131,18 +133,63 @@ const App: React.FC = () => {
         return (
           <div className="text-center animate-fade-in max-w-2xl">
             <p className="text-slate-500 mb-4 font-light">From the ether, a thought emerges:</p>
-            <p className="text-3xl font-thin text-slate-800/90 italic mb-10">"{mysticPhrase}"</p>
+            <div className="relative">
+              <p className="text-3xl font-thin text-slate-800/90 italic mb-10">"{mysticPhrase}"</p>
+              <MediaControls text={mysticPhrase} fileName={`enigmatic-phrase-${randomNumber}`} />
+            </div>
+            
+            <div className="mb-8">
+              <p className="text-slate-500 mb-4 font-light">Choose a visualization style:</p>
+              <div className="flex justify-center gap-4">
+                <button 
+                  onClick={() => setSelectedStyle(ImageStyle.HUMAN_FORM)}
+                  className={`px-4 py-2 rounded-lg transition-all ${selectedStyle === ImageStyle.HUMAN_FORM ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+                >
+                  Human Form
+                </button>
+                <button 
+                  onClick={() => setSelectedStyle(ImageStyle.COSMIC_ENTITY)}
+                  className={`px-4 py-2 rounded-lg transition-all ${selectedStyle === ImageStyle.COSMIC_ENTITY ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+                >
+                  Cosmic Entity
+                </button>
+              </div>
+            </div>
+            
             <ActionButton onClick={handleGenerateImage}>Visualize the Enigma</ActionButton>
           </div>
         );
       case AppStep.ImageGenerated:
         return (
           <div className="text-center animate-fade-in">
-            <div className="mb-8 w-full max-w-2xl aspect-square bg-slate-200/50 rounded-lg overflow-hidden shadow-2xl">
+            <div className="mb-8 w-full max-w-2xl aspect-square bg-slate-200/50 rounded-lg overflow-hidden shadow-2xl relative">
               <img src={imageUrl} alt={mysticPhrase} className="w-full h-full object-cover" />
+              <MediaControls imageUrl={imageUrl} fileName={`enigmatic-vision-${randomNumber}`} />
             </div>
-            <p className="text-xl font-thin text-slate-600/90 italic mb-10 max-w-2xl">"{mysticPhrase}"</p>
-            <ActionButton onClick={handleReset}>Begin Anew</ActionButton>
+            <div className="relative inline-block">
+              <p className="text-xl font-thin text-slate-600/90 italic mb-10 max-w-2xl">"{mysticPhrase}"</p>
+              <MediaControls text={mysticPhrase} fileName={`enigmatic-phrase-${randomNumber}`} />
+            </div>
+            <div className="flex justify-center gap-4 mb-10">
+              <ActionButton onClick={handleReset}>Begin Anew</ActionButton>
+              <ActionButton onClick={() => {
+                setIsLoading(true);
+                // Generate a new image with the same phrase but toggle the style
+                const newStyle = selectedStyle === ImageStyle.HUMAN_FORM ? ImageStyle.COSMIC_ENTITY : ImageStyle.HUMAN_FORM;
+                setSelectedStyle(newStyle);
+                generateEnigmaticImage(mysticPhrase, newStyle)
+                  .then(url => {
+                    setImageUrl(url);
+                  })
+                  .catch(e => {
+                    setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                    setStep(AppStep.Error);
+                  })
+                  .finally(() => {
+                    setIsLoading(false);
+                  });
+              }}>Try Other Style</ActionButton>
+            </div>
           </div>
         );
       default:
