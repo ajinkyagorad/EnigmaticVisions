@@ -1,0 +1,75 @@
+import { GoogleGenAI } from '@google/genai';
+
+// Global error variable that can be accessed by the App component
+declare global {
+  interface Window {
+    geminiInitializationError?: string;
+  }
+}
+
+// Initialize the Gemini API client
+let ai: GoogleGenAI | null = null;
+
+try {
+  if (!import.meta.env.VITE_GEMINI_API_KEY) {
+    throw new Error("API_KEY environment variable is not set. Please configure it in your deployment service (e.g., Netlify).");
+  }
+  ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+} catch (error) {
+  const errorMessage = error instanceof Error ? error.message : "Failed to initialize Gemini AI.";
+  if (typeof window !== 'undefined') {
+    window.geminiInitializationError = errorMessage;
+  }
+  console.error(errorMessage);
+}
+
+// Helper function to handle API errors
+const getConfigurationError = (originalError: unknown) => {
+  console.error("Gemini API Error:", originalError);
+  const baseMessage = "The API call failed. This often happens in deployed apps due to API key domain restrictions.";
+  if (originalError instanceof Error) {
+    return new Error(`${baseMessage} Original error: ${originalError.message}`);
+  }
+  return new Error(`${baseMessage} An unknown error occurred.`);
+};
+
+/**
+ * Generates a mystical phrase based on a seed number
+ */
+export const generateMysticPhrase = async (seedNumber: number): Promise<string> => {
+  if (!ai) throw new Error(window.geminiInitializationError || "Gemini AI not initialized.");
+  try {
+    const prompt = `Based on the cosmic vibration of the number ${seedNumber}, generate a single, short, enigmatic, and mystical sentence. The sentence should feel abstract, profound, and like a fragment of a forgotten dream. Do not explain the sentence. Just provide the sentence.`;
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-preview-04-17',
+      contents: [{ parts: [{ text: prompt }] }],
+      config: { temperature: 1, topP: 0.95 }
+    });
+    return response.text.trim();
+  } catch (error) {
+    throw getConfigurationError(error);
+  }
+};
+
+/**
+ * Generates an enigmatic image based on a phrase
+ */
+export const generateEnigmaticImage = async (phrase: string): Promise<string> => {
+  if (!ai) throw new Error(window.geminiInitializationError || "Gemini AI not initialized.");
+  try {
+    const artisticFlavor = "ethereal, mystical, surreal, concept-warping, morphing forms, soft focus, dreamlike, enigmatic. A digital painting with the meta feeling of an Enigma (musical project) video cover art. High resolution, atmospheric lighting.";
+    const fullPrompt = `${phrase}. In the style of: ${artisticFlavor}`;
+    const response = await ai.models.generateImages({
+      model: 'imagen-3.0-generate-002',
+      prompt: fullPrompt,
+      config: { numberOfImages: 1, outputMimeType: 'image/jpeg' },
+    });
+    if (response.generatedImages && response.generatedImages.length > 0) {
+      const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+      return `data:image/jpeg;base64,${base64ImageBytes}`;
+    }
+    throw new Error("The model did not return an image.");
+  } catch (error) {
+    throw getConfigurationError(error);
+  }
+};
