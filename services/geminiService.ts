@@ -60,6 +60,27 @@ export const generateMysticPhrase = async (seedNumber: number): Promise<string> 
   }
 };
 
+/**
+ * Generates an explanation for a mystical phrase
+ */
+export const generatePhraseExplanation = async (phrase: string): Promise<string> => {
+  if (!ai) throw new Error(window.geminiInitializationError || "Gemini AI not initialized.");
+  try {
+    const prompt = `The following is a mystical, enigmatic phrase: "${phrase}"
+
+Provide a brief, insightful explanation of what this phrase might mean from a cosmic or philosophical perspective. Keep the explanation under 100 words, maintaining the same mystical and profound tone. The explanation should feel like it comes from the cosmos itself, revealing hidden wisdom.`;
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-preview-04-17',
+      contents: [{ parts: [{ text: prompt }] }],
+      config: { temperature: 0.7, topP: 0.95 }
+    });
+    return response.text?.trim() || "The cosmos speaks in riddles that only the soul can truly comprehend.";
+  } catch (error) {
+    throw getConfigurationError(error);
+  }
+};
+
 export enum ImageStyle {
   HUMAN_FORM = 'human_form',
   COSMIC_ENTITY = 'cosmic_entity'

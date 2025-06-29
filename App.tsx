@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { generateMysticPhrase, generateEnigmaticImage, ImageStyle } from './services/geminiService';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { generateMysticPhrase, generateEnigmaticImage, generatePhraseExplanation, ImageStyle } from './services/geminiService';
 import ActionButton from './components/ActionButton';
 import Spinner from './components/Spinner';
 import MediaControls from './components/MediaControls';
@@ -16,11 +16,15 @@ const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.Initial);
   const [randomNumber, setRandomNumber] = useState<number | null>(null);
   const [mysticPhrase, setMysticPhrase] = useState<string>('');
+  const [phraseExplanation, setPhraseExplanation] = useState<string>('');
+  const [showExplanation, setShowExplanation] = useState<boolean>(false);
+  const [isExplaining, setIsExplaining] = useState<boolean>(false);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [hostname, setHostname] = useState<string>('');
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>(ImageStyle.HUMAN_FORM);
+  const phraseRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setHostname(window.location.hostname);
@@ -29,12 +33,25 @@ const App: React.FC = () => {
       setError((window as any).geminiInitializationError);
       setStep(AppStep.Error);
     }
+    
+    // Add animation styles to the document head
+    const styleElement = document.createElement('style');
+    styleElement.textContent = animationStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      // Clean up the style element when component unmounts
+      document.head.removeChild(styleElement);
+    };
   }, []);
 
   const handleReset = useCallback(() => {
     setStep(AppStep.Initial);
     setRandomNumber(null);
     setMysticPhrase('');
+    setPhraseExplanation('');
+    setShowExplanation(false);
+    setIsExplaining(false);
     setImageUrl('');
     setError('');
     setIsLoading(false);
@@ -74,6 +91,9 @@ const App: React.FC = () => {
       const url = await generateEnigmaticImage(mysticPhrase, selectedStyle);
       setImageUrl(url);
       setStep(AppStep.ImageGenerated);
+      // Reset explanation state when moving to image generation
+      setShowExplanation(false);
+      setPhraseExplanation('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unknown error occurred.');
       setStep(AppStep.Error);
@@ -81,6 +101,25 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, [mysticPhrase, selectedStyle]);
+  
+  const handleExplainPhrase = useCallback(async () => {
+    if (!mysticPhrase) return;
+    setIsExplaining(true);
+    setError('');
+    try {
+      // First animate the phrase moving up
+      setShowExplanation(true);
+      
+      // Then get the explanation
+      const explanation = await generatePhraseExplanation(mysticPhrase);
+      setPhraseExplanation(explanation);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+      setShowExplanation(false);
+    } finally {
+      setIsExplaining(false);
+    }
+  }, [mysticPhrase]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -132,10 +171,54 @@ const App: React.FC = () => {
       case AppStep.PhraseGenerated:
         return (
           <div className="text-center animate-fade-in max-w-2xl">
-            <p className="text-slate-500 mb-4 font-light">From the ether, a thought emerges:</p>
-            <div className="relative">
-              <p className="text-3xl font-thin text-slate-800/90 italic mb-10">"{mysticPhrase}"</p>
-              <MediaControls text={mysticPhrase} fileName={`enigmatic-phrase-${randomNumber}`} />
+            <div className="relative min-h-[200px] mb-10">
+              <div 
+                ref={phraseRef}
+                className={`transition-all duration-1000 ease-in-out ${showExplanation ? 'transform -translate-y-16' : ''}`}
+              >
+                <p className="text-slate-500 mb-4 font-light">From the ether, a thought emerges:</p>
+                <div className="relative">
+                  <p className="text-3xl font-thin text-slate-800/90 italic mb-4">"{mysticPhrase}"</p>
+                  <MediaControls text={mysticPhrase} fileName={`enigmatic-phrase-${randomNumber}`} />
+                </div>
+                
+                {!showExplanation && (
+                  <div className="flex justify-center mt-4">
+                    <button 
+                      onClick={handleExplainPhrase}
+                      disabled={isExplaining}
+                      className={`
+                        px-4 py-2 rounded-lg transition-all text-sm
+                        ${isExplaining ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}
+                      `}
+                    >
+                      {isExplaining ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Interpreting...
+                        </span>
+                      ) : (
+                        'Reveal Meaning'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {showExplanation && (
+                <div className="mt-8 animate-fade-in">
+                  {phraseExplanation ? (
+                    <p className="text-lg font-light text-slate-700 italic bg-slate-100/70 p-4 rounded-lg">{phraseExplanation}</p>
+                  ) : (
+                    <div className="flex justify-center items-center h-16">
+                      <Spinner />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             <div className="mb-8">
@@ -205,5 +288,17 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+// CSS for animations
+const animationStyles = `
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-in-out;
+}
+`;
 
 export default App;
