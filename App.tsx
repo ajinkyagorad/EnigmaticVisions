@@ -95,7 +95,66 @@ const App: React.FC = () => {
           if (container) {
             container.classList.add('animate-fade-out');
             setTimeout(() => {
-              handleGeneratePhrase();
+              // Use an anonymous function to avoid circular dependency
+              if (randomNumber !== null) {
+                setIsLoading(true);
+                setError('');
+                generateMysticPhrase(num)
+                  .then(phrase => {
+                    setMysticPhrase(phrase);
+                    setStep(AppStep.PhraseGenerated);
+                    
+                    // Continue auto-play flow
+                    if (isAutoPlaying) {
+                      autoPlayTimeoutRef.current = setTimeout(() => {
+                        // Explain phrase
+                        if (phrase) {
+                          setIsExplaining(true);
+                          setShowExplanation(true);
+                          generatePhraseExplanation(phrase)
+                            .then(explanation => {
+                              setPhraseExplanation(explanation);
+                              setIsExplaining(false);
+                              
+                              // Generate image after explanation
+                              autoPlayTimeoutRef.current = setTimeout(() => {
+                                if (phrase) {
+                                  setIsLoading(true);
+                                  generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
+                                    .then(url => {
+                                      setImageUrl(url);
+                                      setStep(AppStep.ImageGenerated);
+                                      setIsLoading(false);
+                                      setIsAutoPlaying(false);
+                                    })
+                                    .catch(e => {
+                                      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                                      setStep(AppStep.Error);
+                                      setIsAutoPlaying(false);
+                                      setIsLoading(false);
+                                    });
+                                }
+                              }, 3000);
+                            })
+                            .catch(e => {
+                              setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                              setShowExplanation(false);
+                              setIsExplaining(false);
+                              setIsAutoPlaying(false);
+                            });
+                        }
+                      }, 1500);
+                    }
+                    setIsLoading(false);
+                  })
+                  .catch(e => {
+                    setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                    setStep(AppStep.Error);
+                    setIsAutoPlaying(false);
+                    setIsLoading(false);
+                  });
+              }
+              
               setTimeout(() => {
                 container.classList.remove('animate-fade-out');
                 container.classList.add('animate-fade-in');
@@ -105,6 +164,7 @@ const App: React.FC = () => {
               }, 100);
             }, 800);
           } else {
+            // Direct call without animation if container not found
             handleGeneratePhrase();
           }
         }, 1500);
@@ -125,27 +185,55 @@ const App: React.FC = () => {
       if (isAutoPlaying) {
         // First reveal the meaning
         autoPlayTimeoutRef.current = setTimeout(async () => {
-          await handleExplainPhrase();
-          
-          // Then after a delay, generate the image with fade transition
-          autoPlayTimeoutRef.current = setTimeout(() => {
-            const container = document.querySelector('.app-container');
-            if (container) {
-              container.classList.add('animate-fade-out');
-              setTimeout(() => {
-                handleGenerateImage();
+          // Inline the explain phrase functionality
+          setIsExplaining(true);
+          setShowExplanation(true);
+          try {
+            const explanation = await generatePhraseExplanation(phrase);
+            setPhraseExplanation(explanation);
+            
+            // Then after a delay, generate the image with fade transition
+            autoPlayTimeoutRef.current = setTimeout(() => {
+              const container = document.querySelector('.app-container');
+              if (container) {
+                container.classList.add('animate-fade-out');
                 setTimeout(() => {
-                  container.classList.remove('animate-fade-out');
-                  container.classList.add('animate-fade-in');
-                  setTimeout(() => {
-                    container.classList.remove('animate-fade-in');
-                  }, 800);
-                }, 100);
-              }, 800);
-            } else {
-              handleGenerateImage();
-            }
-          }, 3000);
+                  // Inline the generate image functionality
+                  setIsLoading(true);
+                  generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
+                    .then(url => {
+                      setImageUrl(url);
+                      setStep(AppStep.ImageGenerated);
+                      setIsLoading(false);
+                      setIsAutoPlaying(false);
+                      
+                      setTimeout(() => {
+                        container.classList.remove('animate-fade-out');
+                        container.classList.add('animate-fade-in');
+                        setTimeout(() => {
+                          container.classList.remove('animate-fade-in');
+                        }, 800);
+                      }, 100);
+                    })
+                    .catch(e => {
+                      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                      setStep(AppStep.Error);
+                      setIsAutoPlaying(false);
+                      setIsLoading(false);
+                    });
+                }, 800);
+              } else {
+                // Direct call without animation if container not found
+                handleGenerateImage();
+              }
+            }, 3000);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+            setShowExplanation(false);
+            setIsAutoPlaying(false);
+          } finally {
+            setIsExplaining(false);
+          }
         }, 1500);
       }
     } catch (e) {
@@ -162,7 +250,9 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError('');
     try {
-      const url = await generateEnigmaticImage(mysticPhrase, selectedStyle);
+      // When auto-playing, always use HUMAN_FORM style
+      const styleToUse = isAutoPlaying ? ImageStyle.HUMAN_FORM : selectedStyle;
+      const url = await generateEnigmaticImage(mysticPhrase, styleToUse);
       setImageUrl(url);
       setStep(AppStep.ImageGenerated);
       // Don't reset explanation state when auto-playing
@@ -221,6 +311,8 @@ const App: React.FC = () => {
   
   const handleStartAutoPlay = useCallback(() => {
     setIsAutoPlaying(true);
+    // Set the default style to HUMAN_FORM for auto-play
+    setSelectedStyle(ImageStyle.HUMAN_FORM);
     handleGenerateNumber();
   }, []);
 
