@@ -49,6 +49,12 @@ const App: React.FC = () => {
     return () => {
       // Clean up the style element when component unmounts
       document.head.removeChild(styleElement);
+      
+      // Clear any pending timeouts
+      if (autoPlayTimeoutRef.current) {
+        clearTimeout(autoPlayTimeoutRef.current);
+        autoPlayTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -89,6 +95,7 @@ const App: React.FC = () => {
       
       // If auto-playing, continue to the next step
       if (isAutoPlaying) {
+        console.log('Auto-play: Number generated, continuing to phrase generation...');
         autoPlayTimeoutRef.current = setTimeout(() => {
           // Add fade-out effect before transitioning
           const container = document.querySelector('.app-container');
@@ -96,7 +103,8 @@ const App: React.FC = () => {
             container.classList.add('animate-fade-out');
             setTimeout(() => {
               // Use an anonymous function to avoid circular dependency
-              if (randomNumber !== null) {
+              // Always use the newly generated number, not the state variable
+              {
                 setIsLoading(true);
                 setError('');
                 generateMysticPhrase(num)
@@ -310,11 +318,29 @@ const App: React.FC = () => {
   }, [imageUrl, mysticPhrase, phraseExplanation, randomNumber]);
   
   const handleStartAutoPlay = useCallback(() => {
+    // Clear any existing timeouts first
+    if (autoPlayTimeoutRef.current) {
+      clearTimeout(autoPlayTimeoutRef.current);
+      autoPlayTimeoutRef.current = null;
+    }
+    
     setIsAutoPlaying(true);
     // Set the default style to HUMAN_FORM for auto-play
     setSelectedStyle(ImageStyle.HUMAN_FORM);
+    
+    // Start the flow
     handleGenerateNumber();
-  }, []);
+    
+    // Add a safety check - if nothing happens after 10 seconds, try to continue the flow
+    setTimeout(() => {
+      if (step === AppStep.NumberGenerated && isAutoPlaying) {
+        console.log('Auto-play flow stalled, attempting to continue...');
+        if (randomNumber !== null) {
+          handleGeneratePhrase();
+        }
+      }
+    }, 10000);
+  }, [step, randomNumber]);
 
   const renderContent = () => {
     if (isLoading) {
