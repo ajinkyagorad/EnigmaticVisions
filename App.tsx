@@ -86,98 +86,77 @@ const App: React.FC = () => {
 
   const handleGenerateNumber = useCallback(() => {
     const num = Math.floor(Math.random() * 9999) + 1;
+    // Set the number immediately so it's available for the next step
+    setRandomNumber(num);
     setShowNumberAnimation(true);
     
-    // After animation completes, set the actual number
+    // After animation completes, proceed to next step
     setTimeout(() => {
-      setRandomNumber(num);
       setStep(AppStep.NumberGenerated);
       
-      // If auto-playing, continue to the next step
+      // If auto-playing, continue to the next step immediately
       if (isAutoPlaying) {
         console.log('Auto-play: Number generated, continuing to phrase generation...');
-        autoPlayTimeoutRef.current = setTimeout(() => {
-          // Add fade-out effect before transitioning
-          const container = document.querySelector('.app-container');
-          if (container) {
-            container.classList.add('animate-fade-out');
-            setTimeout(() => {
-              // Use an anonymous function to avoid circular dependency
-              // Always use the newly generated number, not the state variable
-              {
-                setIsLoading(true);
-                setError('');
-                generateMysticPhrase(num)
-                  .then(phrase => {
-                    setMysticPhrase(phrase);
-                    setStep(AppStep.PhraseGenerated);
+        // Use the current number directly instead of relying on state
+        setIsLoading(true);
+        setError('');
+        generateMysticPhrase(num)
+          .then(phrase => {
+            console.log('Auto-play: Phrase generated for number:', num);
+            setMysticPhrase(phrase);
+            setStep(AppStep.PhraseGenerated);
+            setIsLoading(false);
+            
+            // Continue to explanation
+            if (isAutoPlaying) {
+              autoPlayTimeoutRef.current = setTimeout(() => {
+                console.log('Auto-play: Continuing to explanation...');
+                setIsExplaining(true);
+                setShowExplanation(true);
+                generatePhraseExplanation(phrase)
+                  .then(explanation => {
+                    setPhraseExplanation(explanation);
+                    setIsExplaining(false);
                     
-                    // Continue auto-play flow
+                    // Continue to image generation
                     if (isAutoPlaying) {
                       autoPlayTimeoutRef.current = setTimeout(() => {
-                        // Explain phrase
-                        if (phrase) {
-                          setIsExplaining(true);
-                          setShowExplanation(true);
-                          generatePhraseExplanation(phrase)
-                            .then(explanation => {
-                              setPhraseExplanation(explanation);
-                              setIsExplaining(false);
-                              
-                              // Generate image after explanation
-                              autoPlayTimeoutRef.current = setTimeout(() => {
-                                if (phrase) {
-                                  setIsLoading(true);
-                                  generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
-                                    .then(url => {
-                                      setImageUrl(url);
-                                      setStep(AppStep.ImageGenerated);
-                                      setIsLoading(false);
-                                      setIsAutoPlaying(false);
-                                    })
-                                    .catch(e => {
-                                      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                                      setStep(AppStep.Error);
-                                      setIsAutoPlaying(false);
-                                      setIsLoading(false);
-                                    });
-                                }
-                              }, 3000);
-                            })
-                            .catch(e => {
-                              setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                              setShowExplanation(false);
-                              setIsExplaining(false);
-                              setIsAutoPlaying(false);
-                            });
-                        }
-                      }, 1500);
+                        console.log('Auto-play: Generating image...');
+                        setIsLoading(true);
+                        generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
+                          .then(url => {
+                            setImageUrl(url);
+                            setStep(AppStep.ImageGenerated);
+                            setIsLoading(false);
+                            setIsAutoPlaying(false);
+                            console.log('Auto-play: Complete!');
+                          })
+                          .catch(e => {
+                            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                            setStep(AppStep.Error);
+                            setIsAutoPlaying(false);
+                            setIsLoading(false);
+                          });
+                      }, 3000);
                     }
-                    setIsLoading(false);
                   })
                   .catch(e => {
                     setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                    setStep(AppStep.Error);
+                    setShowExplanation(false);
+                    setIsExplaining(false);
                     setIsAutoPlaying(false);
-                    setIsLoading(false);
                   });
-              }
-              
-              setTimeout(() => {
-                container.classList.remove('animate-fade-out');
-                container.classList.add('animate-fade-in');
-                setTimeout(() => {
-                  container.classList.remove('animate-fade-in');
-                }, 800);
-              }, 100);
-            }, 800);
-          } else {
-            // Direct call without animation if container not found
-            handleGeneratePhrase();
-          }
-        }, 1500);
+              }, 1500);
+            }
+          })
+          .catch(e => {
+            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+            setStep(AppStep.Error);
+            setIsAutoPlaying(false);
+            setIsLoading(false);
+          });
       }
-    }, 2000); // Match the duration in NumberAnimation component
+    }, 2500); // Slightly longer than animation duration to ensure completion
   }, [isAutoPlaying]);
 
   const handleGeneratePhrase = useCallback(async () => {
@@ -185,12 +164,14 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError('');
     try {
+      console.log('Auto-play: Generating mystical phrase for number:', randomNumber);
       const phrase = await generateMysticPhrase(randomNumber);
       setMysticPhrase(phrase);
       setStep(AppStep.PhraseGenerated);
       
       // If auto-playing, continue to the next steps
       if (isAutoPlaying) {
+        console.log('Auto-play: Phrase generated, continuing to explanation...');
         // First reveal the meaning
         autoPlayTimeoutRef.current = setTimeout(async () => {
           // Inline the explain phrase functionality
@@ -325,22 +306,13 @@ const App: React.FC = () => {
     }
     
     setIsAutoPlaying(true);
+    console.log('Auto-play: Starting auto-play sequence');
     // Set the default style to HUMAN_FORM for auto-play
     setSelectedStyle(ImageStyle.HUMAN_FORM);
     
     // Start the flow
     handleGenerateNumber();
-    
-    // Add a safety check - if nothing happens after 10 seconds, try to continue the flow
-    setTimeout(() => {
-      if (step === AppStep.NumberGenerated && isAutoPlaying) {
-        console.log('Auto-play flow stalled, attempting to continue...');
-        if (randomNumber !== null) {
-          handleGeneratePhrase();
-        }
-      }
-    }, 10000);
-  }, [step, randomNumber]);
+  }, [handleGenerateNumber]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -397,11 +369,11 @@ const App: React.FC = () => {
                 onComplete={() => setShowNumberAnimation(false)}
               />
             ) : (
-              <p className="text-7xl font-thin text-slate-800 mb-10 tracking-wider">{randomNumber}</p>
+              <p className="text-7xl font-thin text-slate-800 mb-10 tracking-wider font-mono">{randomNumber?.toString().padStart(4, '0')}</p>
             )}
             <ActionButton 
               onClick={handleGeneratePhrase} 
-              disabled={isAutoPlaying || showNumberAnimation}
+              disabled={isAutoPlaying}
             >
               Weave a Mystic Phrase
             </ActionButton>
