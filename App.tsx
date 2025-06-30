@@ -3,6 +3,9 @@ import { generateMysticPhrase, generateEnigmaticImage, generatePhraseExplanation
 import ActionButton from './components/ActionButton';
 import Spinner from './components/Spinner';
 import MediaControls from './components/MediaControls';
+import NumberAnimation from './components/NumberAnimation';
+import AutoPlayButton from './components/AutoPlayButton';
+import { generatePostcard } from './utils/postcardGenerator';
 
 export enum AppStep {
   Initial = 0,
@@ -24,7 +27,11 @@ const App: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [hostname, setHostname] = useState<string>('');
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>(ImageStyle.HUMAN_FORM);
+  const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
+  const [showNumberAnimation, setShowNumberAnimation] = useState<boolean>(false);
+  const [isGeneratingPostcard, setIsGeneratingPostcard] = useState<boolean>(false);
   const phraseRef = useRef<HTMLDivElement>(null);
+  const autoPlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setHostname(window.location.hostname);
@@ -55,6 +62,16 @@ const App: React.FC = () => {
     setImageUrl('');
     setError('');
     setIsLoading(false);
+    setIsAutoPlaying(false);
+    setShowNumberAnimation(false);
+    setIsGeneratingPostcard(false);
+    
+    // Clear any pending auto-play timeouts
+    if (autoPlayTimeoutRef.current) {
+      clearTimeout(autoPlayTimeoutRef.current);
+      autoPlayTimeoutRef.current = null;
+    }
+    
     if (typeof window !== 'undefined' && (window as any).geminiInitializationError) {
       setError((window as any).geminiInitializationError);
       setStep(AppStep.Error);
@@ -63,9 +80,37 @@ const App: React.FC = () => {
 
   const handleGenerateNumber = useCallback(() => {
     const num = Math.floor(Math.random() * 9999) + 1;
-    setRandomNumber(num);
-    setStep(AppStep.NumberGenerated);
-  }, []);
+    setShowNumberAnimation(true);
+    
+    // After animation completes, set the actual number
+    setTimeout(() => {
+      setRandomNumber(num);
+      setStep(AppStep.NumberGenerated);
+      
+      // If auto-playing, continue to the next step
+      if (isAutoPlaying) {
+        autoPlayTimeoutRef.current = setTimeout(() => {
+          // Add fade-out effect before transitioning
+          const container = document.querySelector('.app-container');
+          if (container) {
+            container.classList.add('animate-fade-out');
+            setTimeout(() => {
+              handleGeneratePhrase();
+              setTimeout(() => {
+                container.classList.remove('animate-fade-out');
+                container.classList.add('animate-fade-in');
+                setTimeout(() => {
+                  container.classList.remove('animate-fade-in');
+                }, 800);
+              }, 100);
+            }, 800);
+          } else {
+            handleGeneratePhrase();
+          }
+        }, 1500);
+      }
+    }, 2000); // Match the duration in NumberAnimation component
+  }, [isAutoPlaying]);
 
   const handleGeneratePhrase = useCallback(async () => {
     if (randomNumber === null) return;
@@ -75,13 +120,42 @@ const App: React.FC = () => {
       const phrase = await generateMysticPhrase(randomNumber);
       setMysticPhrase(phrase);
       setStep(AppStep.PhraseGenerated);
+      
+      // If auto-playing, continue to the next steps
+      if (isAutoPlaying) {
+        // First reveal the meaning
+        autoPlayTimeoutRef.current = setTimeout(async () => {
+          await handleExplainPhrase();
+          
+          // Then after a delay, generate the image with fade transition
+          autoPlayTimeoutRef.current = setTimeout(() => {
+            const container = document.querySelector('.app-container');
+            if (container) {
+              container.classList.add('animate-fade-out');
+              setTimeout(() => {
+                handleGenerateImage();
+                setTimeout(() => {
+                  container.classList.remove('animate-fade-out');
+                  container.classList.add('animate-fade-in');
+                  setTimeout(() => {
+                    container.classList.remove('animate-fade-in');
+                  }, 800);
+                }, 100);
+              }, 800);
+            } else {
+              handleGenerateImage();
+            }
+          }, 3000);
+        }, 1500);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unknown error occurred.');
       setStep(AppStep.Error);
+      setIsAutoPlaying(false);
     } finally {
       setIsLoading(false);
     }
-  }, [randomNumber]);
+  }, [randomNumber, isAutoPlaying]);
 
   const handleGenerateImage = useCallback(async () => {
     if (!mysticPhrase) return;
@@ -91,16 +165,20 @@ const App: React.FC = () => {
       const url = await generateEnigmaticImage(mysticPhrase, selectedStyle);
       setImageUrl(url);
       setStep(AppStep.ImageGenerated);
-      // Reset explanation state when moving to image generation
-      setShowExplanation(false);
-      setPhraseExplanation('');
+      // Don't reset explanation state when auto-playing
+      if (!isAutoPlaying) {
+        setShowExplanation(false);
+        setPhraseExplanation('');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unknown error occurred.');
       setStep(AppStep.Error);
+      setIsAutoPlaying(false);
     } finally {
       setIsLoading(false);
+      setIsAutoPlaying(false); // End auto-play when reaching the final step
     }
-  }, [mysticPhrase, selectedStyle]);
+  }, [mysticPhrase, selectedStyle, isAutoPlaying]);
   
   const handleExplainPhrase = useCallback(async () => {
     if (!mysticPhrase) return;
@@ -113,13 +191,38 @@ const App: React.FC = () => {
       // Then get the explanation
       const explanation = await generatePhraseExplanation(mysticPhrase);
       setPhraseExplanation(explanation);
+      return explanation; // Return the explanation for auto-play chaining
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unknown error occurred.');
       setShowExplanation(false);
+      return null;
     } finally {
       setIsExplaining(false);
     }
   }, [mysticPhrase]);
+  
+  const handleCreatePostcard = useCallback(async () => {
+    if (!imageUrl || !mysticPhrase) return;
+    
+    setIsGeneratingPostcard(true);
+    try {
+      await generatePostcard(
+        imageUrl,
+        mysticPhrase,
+        phraseExplanation || null,
+        `enigmatic-postcard-${randomNumber}`
+      );
+    } catch (e) {
+      console.error('Failed to generate postcard:', e);
+    } finally {
+      setIsGeneratingPostcard(false);
+    }
+  }, [imageUrl, mysticPhrase, phraseExplanation, randomNumber]);
+  
+  const handleStartAutoPlay = useCallback(() => {
+    setIsAutoPlaying(true);
+    handleGenerateNumber();
+  }, []);
 
   const renderContent = () => {
     if (isLoading) {
@@ -157,15 +260,33 @@ const App: React.FC = () => {
           <div className="text-center animate-fade-in">
             <h1 className="text-5xl font-thin text-slate-800 mb-2 tracking-widest">ENIGMA</h1>
             <p className="text-slate-500 mb-10 font-light">Begin the journey into the abstract.</p>
-            <ActionButton onClick={handleGenerateNumber}>Consult the Oracle</ActionButton>
+            <div className="flex items-center justify-center gap-4">
+              <ActionButton onClick={handleGenerateNumber}>Consult the Oracle</ActionButton>
+              <AutoPlayButton 
+                onClick={handleStartAutoPlay} 
+                disabled={isAutoPlaying}
+              />
+            </div>
           </div>
         );
       case AppStep.NumberGenerated:
         return (
           <div className="text-center animate-fade-in">
             <p className="text-slate-500 mb-4 font-light">The cosmos has chosen a number:</p>
-            <p className="text-7xl font-thin text-slate-800 mb-10 tracking-wider">{randomNumber}</p>
-            <ActionButton onClick={handleGeneratePhrase}>Weave a Mystic Phrase</ActionButton>
+            {showNumberAnimation ? (
+              <NumberAnimation 
+                targetNumber={randomNumber || 0} 
+                onComplete={() => setShowNumberAnimation(false)}
+              />
+            ) : (
+              <p className="text-7xl font-thin text-slate-800 mb-10 tracking-wider">{randomNumber}</p>
+            )}
+            <ActionButton 
+              onClick={handleGeneratePhrase} 
+              disabled={isAutoPlaying || showNumberAnimation}
+            >
+              Weave a Mystic Phrase
+            </ActionButton>
           </div>
         );
       case AppStep.PhraseGenerated:
@@ -248,11 +369,36 @@ const App: React.FC = () => {
             <div className="mb-8 w-full max-w-2xl aspect-square bg-slate-200/50 rounded-lg overflow-hidden shadow-2xl relative">
               <img src={imageUrl} alt={mysticPhrase} className="w-full h-full object-cover" />
               <MediaControls imageUrl={imageUrl} fileName={`enigmatic-vision-${randomNumber}`} />
+              
+              {/* Invisible postcard download button covering the entire image */}
+              <button 
+                onClick={handleCreatePostcard}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-default"
+                aria-label="Create postcard"
+                title="Click anywhere on the image to create a postcard"
+              />
+              
+              {isGeneratingPostcard && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                  <div className="bg-white p-4 rounded-lg shadow-lg">
+                    <Spinner />
+                    <p className="mt-2 text-sm">Creating postcard...</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="relative inline-block">
-              <p className="text-xl font-thin text-slate-600/90 italic mb-10 max-w-2xl">"{mysticPhrase}"</p>
+            
+            <div className="relative inline-block mb-6">
+              <p className="text-xl font-thin text-slate-600/90 italic max-w-2xl">"{mysticPhrase}"</p>
               <MediaControls text={mysticPhrase} fileName={`enigmatic-phrase-${randomNumber}`} />
             </div>
+            
+            {phraseExplanation && (
+              <div className="mb-8 animate-fade-in max-w-2xl mx-auto">
+                <p className="text-lg font-light text-slate-700 italic bg-slate-100/70 p-4 rounded-lg">{phraseExplanation}</p>
+              </div>
+            )}
+            
             <div className="flex justify-center gap-4 mb-10">
               <ActionButton onClick={handleReset}>Begin Anew</ActionButton>
               <ActionButton onClick={() => {
@@ -281,8 +427,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="bg-gray-50 text-slate-700 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-slate-300/50">
-      <div className="w-full max-w-4xl flex items-center justify-center transition-all duration-500 ease-in-out">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative">
+      <div className="max-w-4xl w-full app-container auto-play-transition">
         {renderContent()}
       </div>
     </div>
@@ -298,6 +444,29 @@ const animationStyles = `
 
 .animate-fade-in {
   animation: fadeIn 0.8s ease-in-out;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.8s ease-in-out forwards;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.animate-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.auto-play-transition {
+  transition: opacity 1.2s ease-in-out;
 }
 `;
 
