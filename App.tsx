@@ -305,13 +305,25 @@ const App: React.FC = () => {
       autoPlayTimeoutRef.current = null;
     }
     
+    // Reset any previous state
+    setShowNumberAnimation(false);
+    setRandomNumber(null);
+    setMysticPhrase('');
+    setPhraseExplanation('');
+    setShowExplanation(false);
+    setIsExplaining(false);
+    setImageUrl('');
+    setError('');
+    
     setIsAutoPlaying(true);
     console.log('Auto-play: Starting auto-play sequence');
     // Set the default style to HUMAN_FORM for auto-play
     setSelectedStyle(ImageStyle.HUMAN_FORM);
     
     // Start the flow
-    handleGenerateNumber();
+    setTimeout(() => {
+      handleGenerateNumber();
+    }, 100);
   }, [handleGenerateNumber]);
 
   const renderContent = () => {
@@ -363,14 +375,16 @@ const App: React.FC = () => {
         return (
           <div className="text-center animate-fade-in">
             <p className="text-slate-500 mb-4 font-light">The cosmos has chosen a number:</p>
-            {showNumberAnimation ? (
-              <NumberAnimation 
-                targetNumber={randomNumber || 0} 
-                onComplete={() => setShowNumberAnimation(false)}
-              />
-            ) : (
-              <p className="text-7xl font-thin text-slate-800 mb-10 tracking-wider font-mono">{randomNumber?.toString().padStart(4, '0')}</p>
-            )}
+            <div className="h-[96px] flex items-center justify-center">
+              {showNumberAnimation ? (
+                <NumberAnimation 
+                  targetNumber={randomNumber || 0} 
+                  onComplete={() => setShowNumberAnimation(false)}
+                />
+              ) : (
+                <p className="text-7xl font-thin text-slate-800 tracking-wider font-mono">{randomNumber?.toString().padStart(4, '0')}</p>
+              )}
+            </div>
             <ActionButton 
               onClick={handleGeneratePhrase} 
               disabled={isAutoPlaying}
