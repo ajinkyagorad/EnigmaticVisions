@@ -27,11 +27,14 @@ const App: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [hostname, setHostname] = useState<string>('');
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>(ImageStyle.HUMAN_FORM);
+  // We keep the state for compatibility with existing code but primarily use the ref for current value
   const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
   const [showNumberAnimation, setShowNumberAnimation] = useState<boolean>(false);
   const [isGeneratingPostcard, setIsGeneratingPostcard] = useState<boolean>(false);
   const phraseRef = useRef<HTMLDivElement>(null);
-  const autoPlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const numberAnimationTimeoutRef = useRef<number | null>(null);
+  const autoPlayTimeoutRef = useRef<number | null>(null);
+  const isAutoPlayingRef = useRef<boolean>(false); // Ref to track auto-play state
 
   useEffect(() => {
     setHostname(window.location.hostname);
@@ -51,10 +54,14 @@ const App: React.FC = () => {
       document.head.removeChild(styleElement);
       
       // Clear any pending timeouts
+      if (numberAnimationTimeoutRef.current) {
+        clearTimeout(numberAnimationTimeoutRef.current);
+      }
       if (autoPlayTimeoutRef.current) {
         clearTimeout(autoPlayTimeoutRef.current);
-        autoPlayTimeoutRef.current = null;
       }
+      // Reset auto-play ref on unmount
+      isAutoPlayingRef.current = false;
     };
   }, []);
 
@@ -86,78 +93,97 @@ const App: React.FC = () => {
 
   const handleGenerateNumber = useCallback(() => {
     const num = Math.floor(Math.random() * 9999) + 1;
+    console.log('Auto-play: Generated random number:', num);
+    
     // Set the number immediately so it's available for the next step
     setRandomNumber(num);
     setShowNumberAnimation(true);
     
     // After animation completes, proceed to next step
-    setTimeout(() => {
+    numberAnimationTimeoutRef.current = window.setTimeout(() => {
+      console.log('Auto-play: Number animation complete, proceeding to next step');
       setStep(AppStep.NumberGenerated);
       
-      // If auto-playing, continue to the next step immediately
-      if (isAutoPlaying) {
+      // Check the ref instead of the state for auto-play status
+      if (isAutoPlayingRef.current) {
         console.log('Auto-play: Number generated, continuing to phrase generation...');
         // Use the current number directly instead of relying on state
         setIsLoading(true);
         setError('');
         generateMysticPhrase(num)
           .then(phrase => {
-            console.log('Auto-play: Phrase generated for number:', num);
+            console.log('Auto-play: Phrase generated:', phrase);
             setMysticPhrase(phrase);
             setStep(AppStep.PhraseGenerated);
             setIsLoading(false);
             
-            // Continue to explanation
-            if (isAutoPlaying) {
-              autoPlayTimeoutRef.current = setTimeout(() => {
-                console.log('Auto-play: Continuing to explanation...');
-                setIsExplaining(true);
-                setShowExplanation(true);
-                generatePhraseExplanation(phrase)
-                  .then(explanation => {
-                    setPhraseExplanation(explanation);
-                    setIsExplaining(false);
-                    
-                    // Continue to image generation
-                    if (isAutoPlaying) {
-                      autoPlayTimeoutRef.current = setTimeout(() => {
-                        console.log('Auto-play: Generating image...');
-                        setIsLoading(true);
-                        generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
-                          .then(url => {
-                            setImageUrl(url);
-                            setStep(AppStep.ImageGenerated);
-                            setIsLoading(false);
-                            setIsAutoPlaying(false);
-                            console.log('Auto-play: Complete!');
-                          })
-                          .catch(e => {
-                            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                            setStep(AppStep.Error);
-                            setIsAutoPlaying(false);
-                            setIsLoading(false);
-                          });
-                      }, 3000);
-                    }
-                  })
-                  .catch(e => {
-                    setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                    setShowExplanation(false);
-                    setIsExplaining(false);
-                    setIsAutoPlaying(false);
-                  });
-              }, 1500);
+            // Continue to explanation generation immediately
+            if (isAutoPlayingRef.current) {
+              console.log('Auto-play: Generating explanation for phrase');
+              generatePhraseExplanation(phrase)
+                .then(explanation => {
+                  console.log('Auto-play: Explanation generated:', explanation.substring(0, 50) + '...');
+                  setPhraseExplanation(explanation);
+                  
+                  // Show explanation after a short delay
+                  if (isAutoPlayingRef.current) {
+                    autoPlayTimeoutRef.current = window.setTimeout(() => {
+                      console.log('Auto-play: Revealing explanation');
+                      setIsExplaining(true);
+                      setShowExplanation(true);
+                      
+                      // Continue to image generation after explanation is shown
+                      if (isAutoPlayingRef.current) {
+                        autoPlayTimeoutRef.current = window.setTimeout(() => {
+                          console.log('Auto-play: Explanation revealed, continuing to image generation...');
+                          setIsExplaining(false);
+                          setIsLoading(true);
+                          
+                          // Generate the image
+                          generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
+                            .then(url => {
+                              console.log('Auto-play: Image generated successfully');
+                              setImageUrl(url);
+                              setStep(AppStep.ImageGenerated);
+                              setIsLoading(false);
+                              setIsAutoPlaying(false);
+                              isAutoPlayingRef.current = false; // Update ref
+                              console.log('Auto-play: Complete!');
+                            })
+                            .catch(e => {
+                              console.error('Auto-play: Image generation failed', e);
+                              setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                              setStep(AppStep.Error);
+                              setIsAutoPlaying(false);
+                              isAutoPlayingRef.current = false; // Update ref
+                              setIsLoading(false);
+                            });
+                        }, 3000);
+                      }
+                    }, 1000);
+                  }
+                })
+                .catch(e => {
+                  console.error('Auto-play: Explanation generation failed', e);
+                  setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                  setShowExplanation(false);
+                  setIsExplaining(false);
+                  setIsAutoPlaying(false);
+                  isAutoPlayingRef.current = false; // Update ref
+                });
             }
           })
           .catch(e => {
+            console.error('Auto-play: Phrase generation failed', e);
             setError(e instanceof Error ? e.message : 'An unknown error occurred.');
             setStep(AppStep.Error);
             setIsAutoPlaying(false);
+            isAutoPlayingRef.current = false; // Update ref
             setIsLoading(false);
           });
       }
     }, 2500); // Slightly longer than animation duration to ensure completion
-  }, [isAutoPlaying]);
+  }, []); // Remove isAutoPlaying from dependencies since we use the ref
 
   const handleGenerateImage = useCallback(async () => {
     if (!mysticPhrase) return;
@@ -165,12 +191,11 @@ const App: React.FC = () => {
     setError('');
     try {
       // When auto-playing, always use HUMAN_FORM style
-      const styleToUse = isAutoPlaying ? ImageStyle.HUMAN_FORM : selectedStyle;
+      const styleToUse = isAutoPlayingRef.current ? ImageStyle.HUMAN_FORM : selectedStyle;
       const url = await generateEnigmaticImage(mysticPhrase, styleToUse);
       setImageUrl(url);
       setStep(AppStep.ImageGenerated);
-      // Don't reset explanation state when auto-playing
-      if (!isAutoPlaying) {
+      if (!isAutoPlayingRef.current) {
         setShowExplanation(false);
       }
     } catch (e) {
@@ -180,8 +205,9 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
       setIsAutoPlaying(false); // End auto-play when reaching the final step
+      isAutoPlayingRef.current = false; // Update ref
     }
-  }, [mysticPhrase, selectedStyle, isAutoPlaying]);
+  }, [mysticPhrase, selectedStyle]);
   
   const handleGeneratePhrase = useCallback(async () => {
     if (randomNumber === null) return;
@@ -199,9 +225,9 @@ const App: React.FC = () => {
       setStep(AppStep.PhraseGenerated);
       
       // If auto-playing, continue to the next step after a delay
-      if (isAutoPlaying) {
+      if (isAutoPlayingRef.current) {
         console.log('Auto-play: Phrase and explanation generated, continuing to reveal explanation...');
-        autoPlayTimeoutRef.current = setTimeout(() => {
+        autoPlayTimeoutRef.current = window.setTimeout(() => {
           setShowExplanation(true);
           setIsExplaining(true);
           
@@ -220,7 +246,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [randomNumber, isAutoPlaying, handleGenerateImage]);
+  }, [randomNumber, handleGenerateImage]);
   
   const handleExplainPhrase = useCallback(async () => {
     if (!mysticPhrase) return;
@@ -287,15 +313,16 @@ const App: React.FC = () => {
     setError('');
     setStep(AppStep.Initial); // Reset to initial step
     
-    // Set auto-play flag and log
+    // Update both state and ref for auto-play
     setIsAutoPlaying(true);
+    isAutoPlayingRef.current = true;
     console.log('Auto-play: Starting auto-play sequence');
     
     // Set the default style to HUMAN_FORM for auto-play
     setSelectedStyle(ImageStyle.HUMAN_FORM);
     
     // Start the flow after a short delay to ensure state is updated
-    setTimeout(() => {
+    autoPlayTimeoutRef.current = window.setTimeout(() => {
       console.log('Auto-play: Generating number...');
       handleGenerateNumber();
     }, 200);
@@ -341,7 +368,7 @@ const App: React.FC = () => {
               <ActionButton onClick={handleGenerateNumber}>Consult the Oracle</ActionButton>
               <AutoPlayButton 
                 onClick={handleStartAutoPlay} 
-                disabled={isAutoPlaying}
+                disabled={isAutoPlayingRef.current}
               />
             </div>
           </div>
@@ -362,7 +389,7 @@ const App: React.FC = () => {
             </div>
             <ActionButton 
               onClick={handleGeneratePhrase} 
-              disabled={isAutoPlaying}
+              disabled={isAutoPlayingRef.current}
             >
               Weave a Mystic Phrase
             </ActionButton>
