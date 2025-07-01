@@ -106,81 +106,87 @@ const App: React.FC = () => {
       
       // Check the ref instead of the state for auto-play status
       if (isAutoPlayingRef.current) {
-        console.log('Auto-play: Number generated, continuing to phrase generation...');
-        // Use the current number directly instead of relying on state
-        setIsLoading(true);
-        setError('');
-        generateMysticPhrase(num)
-          .then(phrase => {
-            console.log('Auto-play: Phrase generated:', phrase);
-            setMysticPhrase(phrase);
-            setStep(AppStep.PhraseGenerated);
-            setIsLoading(false);
-            
-            // Continue to explanation generation immediately
-            if (isAutoPlayingRef.current) {
-              console.log('Auto-play: Generating explanation for phrase');
-              generatePhraseExplanation(phrase)
-                .then(explanation => {
-                  console.log('Auto-play: Explanation generated:', explanation.substring(0, 50) + '...');
-                  setPhraseExplanation(explanation);
-                  
-                  // Show explanation after a short delay
-                  if (isAutoPlayingRef.current) {
-                    autoPlayTimeoutRef.current = window.setTimeout(() => {
-                      console.log('Auto-play: Revealing explanation');
-                      setIsExplaining(true);
-                      setShowExplanation(true);
-                      
-                      // Continue to image generation after explanation is shown
-                      if (isAutoPlayingRef.current) {
-                        autoPlayTimeoutRef.current = window.setTimeout(() => {
-                          console.log('Auto-play: Explanation revealed, continuing to image generation...');
-                          setIsExplaining(false);
-                          setIsLoading(true);
-                          
-                          // Generate the image
-                          generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
-                            .then(url => {
-                              console.log('Auto-play: Image generated successfully');
-                              setImageUrl(url);
-                              setStep(AppStep.ImageGenerated);
-                              setIsLoading(false);
-                              setIsAutoPlaying(false);
-                              isAutoPlayingRef.current = false; // Update ref
-                              console.log('Auto-play: Complete!');
-                            })
-                            .catch(e => {
-                              console.error('Auto-play: Image generation failed', e);
-                              setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                              setStep(AppStep.Error);
-                              setIsAutoPlaying(false);
-                              isAutoPlayingRef.current = false; // Update ref
-                              setIsLoading(false);
-                            });
-                        }, 3000);
-                      }
-                    }, 1000);
-                  }
-                })
-                .catch(e => {
-                  console.error('Auto-play: Explanation generation failed', e);
-                  setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                  setShowExplanation(false);
-                  setIsExplaining(false);
-                  setIsAutoPlaying(false);
-                  isAutoPlayingRef.current = false; // Update ref
-                });
-            }
-          })
-          .catch(e => {
-            console.error('Auto-play: Phrase generation failed', e);
-            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-            setStep(AppStep.Error);
-            setIsAutoPlaying(false);
-            isAutoPlayingRef.current = false; // Update ref
-            setIsLoading(false);
-          });
+        console.log('Auto-play: Number generated, pausing for 2 seconds before continuing...');
+        
+        // Add a 2-second pause before continuing to phrase generation
+        autoPlayTimeoutRef.current = window.setTimeout(() => {
+          console.log('Auto-play: Pause complete, continuing to phrase generation...');
+          // Use the current number directly instead of relying on state
+          setIsLoading(true);
+          setError('');
+          
+          generateMysticPhrase(num)
+            .then(phrase => {
+              console.log('Auto-play: Phrase generated:', phrase);
+              setMysticPhrase(phrase);
+              setStep(AppStep.PhraseGenerated);
+              setIsLoading(false);
+              
+              // Continue to explanation generation immediately
+              if (isAutoPlayingRef.current) {
+                console.log('Auto-play: Generating explanation for phrase');
+                generatePhraseExplanation(phrase)
+                  .then(explanation => {
+                    console.log('Auto-play: Explanation generated:', explanation.substring(0, 50) + '...');
+                    setPhraseExplanation(explanation);
+                    
+                    // Show explanation after a short delay
+                    if (isAutoPlayingRef.current) {
+                      autoPlayTimeoutRef.current = window.setTimeout(() => {
+                        console.log('Auto-play: Revealing explanation');
+                        setIsExplaining(true);
+                        setShowExplanation(true);
+                        
+                        // Continue to image generation after explanation is shown
+                        if (isAutoPlayingRef.current) {
+                          autoPlayTimeoutRef.current = window.setTimeout(() => {
+                            console.log('Auto-play: Explanation revealed, continuing to image generation...');
+                            setIsExplaining(false);
+                            setIsLoading(true);
+                            
+                            // Generate the image
+                            generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
+                              .then(url => {
+                                console.log('Auto-play: Image generated successfully');
+                                setImageUrl(url);
+                                setStep(AppStep.ImageGenerated);
+                                setIsLoading(false);
+                                setIsAutoPlaying(false);
+                                isAutoPlayingRef.current = false; // Update ref
+                                console.log('Auto-play: Complete!');
+                              })
+                              .catch(e => {
+                                console.error('Auto-play: Image generation failed', e);
+                                setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                                setStep(AppStep.Error);
+                                setIsAutoPlaying(false);
+                                isAutoPlayingRef.current = false; // Update ref
+                                setIsLoading(false);
+                              });
+                          }, 3000);
+                        }
+                      }, 1000);
+                    }
+                  })
+                  .catch(e => {
+                    console.error('Auto-play: Explanation generation failed', e);
+                    setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+                    setShowExplanation(false);
+                    setIsExplaining(false);
+                    setIsAutoPlaying(false);
+                    isAutoPlayingRef.current = false; // Update ref
+                  });
+              }
+            })
+            .catch(e => {
+              console.error('Auto-play: Phrase generation failed', e);
+              setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+              setStep(AppStep.Error);
+              setIsAutoPlaying(false);
+              isAutoPlayingRef.current = false; // Update ref
+              setIsLoading(false);
+            });
+        }, 2000);
       }
     }, 2500); // Slightly longer than animation duration to ensure completion
   }, []); // Remove isAutoPlaying from dependencies since we use the ref
