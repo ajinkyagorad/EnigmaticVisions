@@ -4,12 +4,18 @@
 
 /**
  * Creates a postcard image with the vision, phrase, and explanation
+ * @param imageUrl URL of the image to include
+ * @param phrase The mystical phrase to display
+ * @param explanation The explanation of the phrase (optional)
+ * @param fileName Name for the downloaded file
+ * @param forceSquareImage Whether to force the image to be square (1:1 aspect ratio)
  */
 export const generatePostcard = async (
   imageUrl: string,
   phrase: string,
   explanation: string | null,
-  fileName: string = 'enigmatic-postcard'
+  fileName: string = 'enigmatic-postcard',
+  forceSquareImage: boolean = true
 ): Promise<void> => {
   // Create a canvas element
   const canvas = document.createElement('canvas');
@@ -35,25 +41,45 @@ export const generatePostcard = async (
       ctx.lineWidth = 10;
       ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
       
-      // Calculate image dimensions to fit in the left 60% of the card
-      const imageWidth = canvas.width * 0.55;
-      const imageHeight = canvas.height - 80;
-      const imageX = 40;
-      const imageY = 40;
+      // Calculate image dimensions
+      let imageWidth, imageHeight, imageX, imageY;
       
-      // Draw image
-      ctx.drawImage(img, imageX, imageY, imageWidth, imageHeight);
+      if (forceSquareImage) {
+        // Square image (1:1 aspect ratio)
+        const imageSize = Math.min(canvas.height - 80, canvas.width * 0.45);
+        imageWidth = imageSize;
+        imageHeight = imageSize;
+        imageX = 40;
+        imageY = (canvas.height - imageSize) / 2;
+        
+        // Draw image with 1:1 aspect ratio
+        ctx.drawImage(img, 0, 0, img.width, img.height, imageX, imageY, imageWidth, imageHeight);
+      } else {
+        // Maintain original aspect ratio
+        const maxWidth = canvas.width * 0.45;
+        const maxHeight = canvas.height - 80;
+        
+        let ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+        imageWidth = img.width * ratio;
+        imageHeight = img.height * ratio;
+        
+        imageX = 40;
+        imageY = (canvas.height - imageHeight) / 2;
+        
+        // Draw image with original aspect ratio
+        ctx.drawImage(img, imageX, imageY, imageWidth, imageHeight);
+      }
       
       // Draw divider
       ctx.beginPath();
-      ctx.moveTo(imageWidth + 60, 40);
-      ctx.lineTo(imageWidth + 60, canvas.height - 40);
+      ctx.moveTo(imageX + imageWidth + 20, 40);
+      ctx.lineTo(imageX + imageWidth + 20, canvas.height - 40);
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 2;
       ctx.stroke();
       
       // Set up text area
-      const textX = imageWidth + 80;
+      const textX = imageX + imageWidth + 40;
       const textWidth = canvas.width - textX - 40;
       let textY = 80;
       

@@ -159,81 +159,6 @@ const App: React.FC = () => {
     }, 2500); // Slightly longer than animation duration to ensure completion
   }, [isAutoPlaying]);
 
-  const handleGeneratePhrase = useCallback(async () => {
-    if (randomNumber === null) return;
-    setIsLoading(true);
-    setError('');
-    try {
-      console.log('Auto-play: Generating mystical phrase for number:', randomNumber);
-      const phrase = await generateMysticPhrase(randomNumber);
-      setMysticPhrase(phrase);
-      setStep(AppStep.PhraseGenerated);
-      
-      // If auto-playing, continue to the next steps
-      if (isAutoPlaying) {
-        console.log('Auto-play: Phrase generated, continuing to explanation...');
-        // First reveal the meaning
-        autoPlayTimeoutRef.current = setTimeout(async () => {
-          // Inline the explain phrase functionality
-          setIsExplaining(true);
-          setShowExplanation(true);
-          try {
-            const explanation = await generatePhraseExplanation(phrase);
-            setPhraseExplanation(explanation);
-            
-            // Then after a delay, generate the image with fade transition
-            autoPlayTimeoutRef.current = setTimeout(() => {
-              const container = document.querySelector('.app-container');
-              if (container) {
-                container.classList.add('animate-fade-out');
-                setTimeout(() => {
-                  // Inline the generate image functionality
-                  setIsLoading(true);
-                  generateEnigmaticImage(phrase, ImageStyle.HUMAN_FORM)
-                    .then(url => {
-                      setImageUrl(url);
-                      setStep(AppStep.ImageGenerated);
-                      setIsLoading(false);
-                      setIsAutoPlaying(false);
-                      
-                      setTimeout(() => {
-                        container.classList.remove('animate-fade-out');
-                        container.classList.add('animate-fade-in');
-                        setTimeout(() => {
-                          container.classList.remove('animate-fade-in');
-                        }, 800);
-                      }, 100);
-                    })
-                    .catch(e => {
-                      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-                      setStep(AppStep.Error);
-                      setIsAutoPlaying(false);
-                      setIsLoading(false);
-                    });
-                }, 800);
-              } else {
-                // Direct call without animation if container not found
-                handleGenerateImage();
-              }
-            }, 3000);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-            setShowExplanation(false);
-            setIsAutoPlaying(false);
-          } finally {
-            setIsExplaining(false);
-          }
-        }, 1500);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-      setStep(AppStep.Error);
-      setIsAutoPlaying(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [randomNumber, isAutoPlaying]);
-
   const handleGenerateImage = useCallback(async () => {
     if (!mysticPhrase) return;
     setIsLoading(true);
@@ -247,7 +172,6 @@ const App: React.FC = () => {
       // Don't reset explanation state when auto-playing
       if (!isAutoPlaying) {
         setShowExplanation(false);
-        setPhraseExplanation('');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unknown error occurred.');
@@ -259,18 +183,53 @@ const App: React.FC = () => {
     }
   }, [mysticPhrase, selectedStyle, isAutoPlaying]);
   
+  const handleGeneratePhrase = useCallback(async () => {
+    if (randomNumber === null) return;
+    setIsLoading(true);
+    setError('');
+    try {
+      // Generate both the phrase and explanation at the same time
+      const phrase = await generateMysticPhrase(randomNumber);
+      setMysticPhrase(phrase);
+      
+      // Generate the explanation immediately but don't show it yet
+      const explanation = await generatePhraseExplanation(phrase);
+      setPhraseExplanation(explanation);
+      
+      setStep(AppStep.PhraseGenerated);
+      
+      // If auto-playing, continue to the next step after a delay
+      if (isAutoPlaying) {
+        console.log('Auto-play: Phrase and explanation generated, continuing to reveal explanation...');
+        autoPlayTimeoutRef.current = setTimeout(() => {
+          setShowExplanation(true);
+          setIsExplaining(true);
+          
+          // Continue to image generation after explanation is shown
+          setTimeout(() => {
+            setIsExplaining(false);
+            console.log('Auto-play: Explanation revealed, continuing to image generation...');
+            handleGenerateImage();
+          }, 3000);
+        }, 2000);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+      setStep(AppStep.Error);
+      setIsAutoPlaying(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [randomNumber, isAutoPlaying, handleGenerateImage]);
+  
   const handleExplainPhrase = useCallback(async () => {
     if (!mysticPhrase) return;
     setIsExplaining(true);
     setError('');
     try {
-      // First animate the phrase moving up
+      // Just show the explanation since we already generated it
       setShowExplanation(true);
-      
-      // Then get the explanation
-      const explanation = await generatePhraseExplanation(mysticPhrase);
-      setPhraseExplanation(explanation);
-      return explanation; // Return the explanation for auto-play chaining
+      return phraseExplanation;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'An unknown error occurred.');
       setShowExplanation(false);
@@ -278,25 +237,37 @@ const App: React.FC = () => {
     } finally {
       setIsExplaining(false);
     }
-  }, [mysticPhrase]);
+  }, [mysticPhrase, phraseExplanation]);
   
   const handleCreatePostcard = useCallback(async () => {
     if (!imageUrl || !mysticPhrase) return;
     
+    // If explanation isn't shown yet but exists, make sure to include it in the postcard
+    let explanationToUse = phraseExplanation;
+    if (!explanationToUse && !showExplanation) {
+      try {
+        explanationToUse = await generatePhraseExplanation(mysticPhrase);
+      } catch (e) {
+        console.error('Failed to generate explanation for postcard:', e);
+      }
+    }
+    
     setIsGeneratingPostcard(true);
     try {
+      // Pass true as the fifth parameter to ensure square aspect ratio (1:1)
       await generatePostcard(
         imageUrl,
         mysticPhrase,
-        phraseExplanation || null,
-        `enigmatic-postcard-${randomNumber}`
+        explanationToUse || null,
+        `enigmatic-postcard-${randomNumber}`,
+        true // Force square aspect ratio
       );
     } catch (e) {
       console.error('Failed to generate postcard:', e);
     } finally {
       setIsGeneratingPostcard(false);
     }
-  }, [imageUrl, mysticPhrase, phraseExplanation, randomNumber]);
+  }, [imageUrl, mysticPhrase, phraseExplanation, randomNumber, showExplanation]);
   
   const handleStartAutoPlay = useCallback(() => {
     // Clear any existing timeouts first
@@ -314,16 +285,20 @@ const App: React.FC = () => {
     setIsExplaining(false);
     setImageUrl('');
     setError('');
+    setStep(AppStep.Initial); // Reset to initial step
     
+    // Set auto-play flag and log
     setIsAutoPlaying(true);
     console.log('Auto-play: Starting auto-play sequence');
+    
     // Set the default style to HUMAN_FORM for auto-play
     setSelectedStyle(ImageStyle.HUMAN_FORM);
     
-    // Start the flow
+    // Start the flow after a short delay to ensure state is updated
     setTimeout(() => {
+      console.log('Auto-play: Generating number...');
       handleGenerateNumber();
-    }, 100);
+    }, 200);
   }, [handleGenerateNumber]);
 
   const renderContent = () => {
