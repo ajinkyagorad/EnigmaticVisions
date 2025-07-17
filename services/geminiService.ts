@@ -50,7 +50,7 @@ export const generateMysticPhrase = async (seedNumber: number): Promise<string> 
   try {
     const prompt = `Based on the cosmic vibration of the number ${seedNumber}, generate a single, short, enigmatic, and mystical sentence. The sentence should feel abstract, profound, and like a fragment of a forgotten dream. Do not explain the sentence. Just provide the sentence.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-04-17',
+      model: 'gemini-1.5-pro',
       contents: [{ parts: [{ text: prompt }] }],
       config: { temperature: 1, topP: 0.95 }
     });
@@ -71,7 +71,7 @@ export const generatePhraseExplanation = async (phrase: string): Promise<string>
 Provide a brief, insightful explanation of what this phrase might mean from a cosmic or philosophical perspective. Keep the explanation under 100 words, maintaining the same mystical and profound tone. The explanation should feel like it comes from the cosmos itself, revealing hidden wisdom.`;
     
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-04-17',
+      model: 'gemini-1.5-pro',
       contents: [{ parts: [{ text: prompt }] }],
       config: { temperature: 0.7, topP: 0.95 }
     });
