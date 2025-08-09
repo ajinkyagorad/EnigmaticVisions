@@ -397,7 +397,7 @@ const App: React.FC = () => {
               onClick={handleGeneratePhrase} 
               disabled={isAutoPlayingRef.current}
             >
-              Weave a Mystic Phrase
+              Channel the Cosmos
             </ActionButton>
           </div>
         );

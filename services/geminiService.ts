@@ -48,13 +48,13 @@ const getConfigurationError = (originalError: unknown) => {
 export const generateMysticPhrase = async (seedNumber: number): Promise<string> => {
   if (!ai) throw new Error(window.geminiInitializationError || "Gemini AI not initialized.");
   try {
-    const prompt = `Based on the cosmic vibration of the number ${seedNumber}, generate a single, short, enigmatic, and mystical sentence. The sentence should feel abstract, profound, and like a fragment of a forgotten dream. Do not explain the sentence. Just provide the sentence.`;
+    const prompt = `Based on the cosmic vibration of the number ${seedNumber}, generate a single, short, mystical phrase about fundamental forces of existence. Focus on primal elements like sun, earth, water, fire, void, light, darkness, or the essence of creation itself. The phrase should be simple yet profound, speaking of the unpatterned basis of the universe. Examples: "The sun breathes life into stone" or "Water remembers the first light". Do not explain. Just provide the phrase.`;
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
       contents: [{ parts: [{ text: prompt }] }],
       config: { temperature: 1, topP: 0.95 }
     });
-    return response.text?.trim() || "A cosmic whisper echoes through the void, unheard but felt.";
+    return response.text?.trim() || "Fire sleeps within the heart of stone.";
   } catch (error) {
     throw getConfigurationError(error);
   }
@@ -92,11 +92,11 @@ export enum ImageStyle {
 const getArtisticFlavor = (style: ImageStyle): string => {
   switch (style) {
     case ImageStyle.HUMAN_FORM:
-      return "ethereal human form with artsy morphing styles merging between objects, dreamlike quality, soft focus, surreal anatomical features, flowing forms, high resolution, atmospheric lighting, digital painting style";
+      return "primordial sun-god archetype, fundamental life force, raw elemental power, ancient cosmic deity, pure solar essence, divine masculine/feminine energy, primal creation force, golden radiance, eternal flame of existence, high resolution, divine lighting, archetypal symbolism";
     case ImageStyle.COSMIC_ENTITY:
-      return "materialistic observation from another universe, alien geometry, impossible physics, cosmic entity, non-euclidean shapes, otherworldly textures, surreal concept-warping, morphing forms between states of matter, ethereal, mystical, dreamlike, enigmatic, high resolution, atmospheric lighting";
+      return "fundamental forces of the universe, primordial void and creation, the first light breaking darkness, cosmic egg of existence, pure consciousness before form, the eternal dance of matter and energy, quantum foam of reality, the source code of existence, unpatterned chaos becoming order, high resolution, cosmic lighting";
     default:
-      return "ethereal, mystical, surreal, concept-warping, morphing forms, soft focus, dreamlike, enigmatic. A digital painting with the meta feeling of an Enigma (musical project) video cover art. High resolution, atmospheric lighting.";
+      return "fundamental essence of reality, primal elements in their pure form, the breath of creation, earth-water-fire-air in cosmic unity, the tree of life, sacred geometry of existence, the eternal spiral of time, divine proportion, the heartbeat of the universe, high resolution, primordial lighting.";
   }
 };
 
